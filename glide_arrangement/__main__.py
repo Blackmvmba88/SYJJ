@@ -18,6 +18,10 @@ def main():
     articulate.add_argument("baseline", type=Path)
     articulate.add_argument("output", type=Path)
     articulate.add_argument("--variant", choices=("B1", "B2", "B3"))
+    duration = commands.add_parser("duration")
+    for name in ("audio","baseline","output"):
+        duration.add_argument(name,type=Path)
+    duration.add_argument("--instrument", choices=("piano","guitar","keys","bass","strings","soft"))
     render = commands.add_parser("render")
     render.add_argument("score", type=Path)
     render.add_argument("output", type=Path)
@@ -56,11 +60,23 @@ def main():
                 refined, decisions = refine(voices, evidence)
             payload = {"voices": [asdict(v) for v in refined], "articulation": decisions}
             args.output.write_text(json.dumps(payload, indent=2)+"\n")
+        elif args.command == "duration":
+            from .articulation import extract_evidence
+            from .duration import refine_duration
+            if args.output.resolve() in {args.baseline.resolve(),args.audio.resolve()}:
+                raise ValueError("Usa una salida distinta para conservar A")
+            voices = read(args.baseline)
+            evidence = extract_evidence(args.audio,{n.pitch for v in voices for n in v.notes})
+            refined, decisions = refine_duration(voices,evidence,args.instrument)
+            args.output.write_text(json.dumps(
+                {"voices":[asdict(v) for v in refined],"duration":decisions},indent=2)+"\n")
         elif args.command == "render":
             from .render import render_midi, render_wav
-            voices = read(args.score)
+            data = json.loads(args.score.read_text())
+            voices = load_score(data)
             if args.output.suffix.lower() == ".wav":
-                render_wav(voices, args.output)
+                tails = {(d["voice"],d["index"]):d["tail_seconds"] for d in data.get("duration",[])}
+                render_wav(voices, args.output, note_tails=tails)
             elif args.output.suffix.lower() in {".mid", ".midi"}:
                 args.output.write_bytes(render_midi(voices, args.bpm))
             else:

@@ -19,21 +19,24 @@ def expression_at(voice, times):
         return np.full_like(times, 100, dtype=float)
     return np.interp(times, [p[0] for p in points], [p[1] for p in points])
 
-def render_wav(voices, path, sample_rate=44100):
-    duration = max((n.end + v.release for v in voices for n in v.notes), default=0)
+def render_wav(voices, path, sample_rate=44100, note_tails=None):
+    tails = note_tails or {}
+    duration = max((n.end + tails.get((v.id,i),v.release)
+                    for v in voices for i,n in enumerate(v.notes)), default=0)
     mix = np.zeros(max(1, int(np.ceil(duration * sample_rate))))
     for voice in voices:
         _, partials, decay = INSTRUMENTS[voice.instrument]
         previous_end = 0
-        for note in sorted(voice.notes, key=lambda n: n.start):
+        for index, note in sorted(enumerate(voice.notes), key=lambda item:item[1].start):
+            release = tails.get((voice.id,index),voice.release)
             start = round(note.start * sample_rate)
-            end = min(len(mix), round((note.end + voice.release) * sample_rate))
+            end = min(len(mix), round((note.end + release) * sample_rate))
             t = np.arange(end-start)/sample_rate
             held = note.end-note.start
             attack = voice.attack * (1.8 if note.start < previous_end else 1)
             envelope = np.minimum(t/max(attack, 1/sample_rate), 1)
             envelope *= 1-decay*(1-np.exp(-t/.55))
-            envelope *= np.clip(1-(t-held)/max(voice.release, 1/sample_rate), 0, 1)
+            envelope *= np.clip(1-(t-held)/max(release, 1/sample_rate), 0, 1)
             hz = 440*2**((note.pitch-69)/12)
             wave = sum(gain*np.sin(2*np.pi*hz*k*t)
                        for k, gain in enumerate(partials, 1) if hz*k < sample_rate/2)

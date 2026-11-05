@@ -121,3 +121,34 @@ error medio de inicio y de fin. Es una tolerancia operativa, no una prueba
 de significancia. El audio de control se genera con ataques conocidos y
 permite medir retriggers con una tolerancia de 75 ms. Las métricas contra
 el audio original siguen dependiendo de la transcripción estimada.
+
+### Duración acústica vNext.3
+
+```sh
+.venv/bin/python -m glide_arrangement duration referencia.mp3 arreglo.json duracion.json --instrument piano
+.venv/bin/python -m glide_arrangement render duracion.json duracion.mid
+.venv/bin/python -m glide_arrangement render duracion.json duracion.wav
+```
+
+La etapa opcional estima un cambio de pendiente en la envolvente por altura y
+exige que los parciales corroboren la caída. El perfil del instrumento define
+rangos plausibles de pendiente y cola. Sin evidencia suficiente conserva el
+evento de A. El JSON separa el fin MIDI del fin acústico y marca si el segundo
+se observó o se acotó con el modelo. Usa un piso operativo de −24 dB para
+la cola, no un umbral de audibilidad universal. MIDI exporta el fin de
+excitación y WAV aplica la duración de cola estimada. Si se omite
+`--instrument`, se usa el perfil asignado a cada voz en el JSON.
+
+La evaluación contra MIDI real empareja por altura exacta e inicio dentro de
+100 ms. Fija las mismas parejas para A y vNext.3 y desglosa el error de fin
+por registro, instrumento, pedal y repetición cercana de la misma altura.
+
+```sh
+.venv/bin/python -m pip install mido==1.3.3
+.venv/bin/python -m experiments.duration_ab fragmento.wav interpretacion.mid --seconds 26 --instrument piano
+```
+
+La prueba externa usó los primeros 26 s de las tomas VuV01M y Zhang01M
+de la fuga BWV 858. Audio MAESTRO y MIDI de interpretación ASAP,
+distribuidos por [Matchmaker](https://github.com/pymatchmaker/matchmaker-benchmark-data/tree/main/asap).
+Los archivos de terceros no se incluyen en el repositorio.
