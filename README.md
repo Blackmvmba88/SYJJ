@@ -94,3 +94,30 @@ duración, pausas y solapamientos por voz, y similitud de la envolvente RMS.
 Los conteos de decisiones sobre el MP3 son hipótesis. Para medir precisión y
 cobertura de retriggers se requieren ataques anotados por voz, altura y tiempo.
 Las pruebas usan eventos conocidos para esa evaluación.
+
+### Articulación selectiva vNext.2
+
+Añade `--variant B1`, `--variant B2` o `--variant B3` al comando
+`articulate`. B1 une solo fragmentos con continuidad de energía, perfil
+armónico y ausencia de un transitorio. B2 divide eventos solo cuando la
+subida de energía y el transitorio coinciden con una caída y recuperación de
+la fundamental. B3 aplica ambas reglas en ese orden. Las variantes dejan en
+A los casos indeterminados y los tiempos de legato o release. Omitir
+`--variant` ejecuta el experimento anterior.
+
+Para reproducir la prueba controlada independiente:
+
+```sh
+.venv/bin/python -m experiments.selective_fixture /tmp/glide-holdout
+.venv/bin/python -m experiments.selective_ab /tmp/glide-holdout/holdout.wav /tmp/glide-holdout --labels /tmp/glide-holdout/holdout-labels.json
+```
+
+Para usar la reconstrucción previa como A, ejecuta el mismo experimento
+con el MP3 original, otra carpeta de salida y `--baseline arreglo.json`.
+El informe compara A, B1, B2 y B3 con la misma síntesis. El criterio numérico
+requiere subir la correlación RMS, perder como máximo un punto porcentual
+en precisión y recuperación de alturas y aumentar como máximo 10 ms el
+error medio de inicio y de fin. Es una tolerancia operativa, no una prueba
+de significancia. El audio de control se genera con ataques conocidos y
+permite medir retriggers con una tolerancia de 75 ms. Las métricas contra
+el audio original siguen dependiendo de la transcripción estimada.

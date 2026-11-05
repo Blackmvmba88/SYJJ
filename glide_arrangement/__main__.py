@@ -17,6 +17,7 @@ def main():
     articulate.add_argument("audio", type=Path)
     articulate.add_argument("baseline", type=Path)
     articulate.add_argument("output", type=Path)
+    articulate.add_argument("--variant", choices=("B1", "B2", "B3"))
     render = commands.add_parser("render")
     render.add_argument("score", type=Path)
     render.add_argument("output", type=Path)
@@ -48,7 +49,11 @@ def main():
                 raise ValueError("Usa un archivo de salida distinto para conservar la referencia A")
             voices = read(args.baseline)
             evidence = extract_evidence(args.audio, {n.pitch for v in voices for n in v.notes})
-            refined, decisions = refine(voices, evidence)
+            if args.variant:
+                from .selective import refine_selective
+                refined, decisions = refine_selective(voices, evidence, args.variant)
+            else:
+                refined, decisions = refine(voices, evidence)
             payload = {"voices": [asdict(v) for v in refined], "articulation": decisions}
             args.output.write_text(json.dumps(payload, indent=2)+"\n")
         elif args.command == "render":

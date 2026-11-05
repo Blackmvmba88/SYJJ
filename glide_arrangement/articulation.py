@@ -13,6 +13,7 @@ class Evidence:
     time: np.ndarray
     energy: np.ndarray
     flux: np.ndarray
+    partials: np.ndarray | None = None
 
 def extract_evidence(path, pitches):
     audio, rate = librosa.load(path, sr=22050, mono=True)
@@ -25,6 +26,7 @@ def extract_evidence(path, pitches):
         fundamental = float(librosa.midi_to_hz(pitch))
         energy = np.zeros_like(time)
         flux = np.zeros_like(time)
+        partials = np.zeros((6, len(time)))
         for partial in range(1, 7):
             center = fundamental*partial
             indices = np.abs(frequencies-center) <= max(12, center*.012)
@@ -32,10 +34,11 @@ def extract_evidence(path, pitches):
                 continue
             band = magnitude[indices]
             weight = 1/partial**.65
-            energy += weight*np.linalg.norm(band, axis=0)
+            partials[partial-1] = np.linalg.norm(band, axis=0)
+            energy += weight*partials[partial-1]
             positive = np.maximum(np.diff(band, axis=1, prepend=band[:, :1]), 0)
             flux += weight*np.linalg.norm(positive, axis=0)
-        evidence[pitch] = Evidence(time, gaussian_filter1d(energy, 1.3), gaussian_filter1d(flux, 1.1))
+        evidence[pitch] = Evidence(time, gaussian_filter1d(energy, 1.3), gaussian_filter1d(flux, 1.1), partials)
     return evidence
 
 def attack_times(evidence, start, end):
