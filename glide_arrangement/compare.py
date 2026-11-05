@@ -18,10 +18,15 @@ def compare(reference, candidate, onset_window=.20):
         return mean(values) if pairs else None
     def register(notes):
         return dict(sorted(Counter(n.pitch//12-1 for n in notes).items()))
+    exact = sum(x.pitch == y.pitch for x, y in pairs)
     return {
         "reference_notes": len(a), "candidate_notes": len(b), "aligned_notes": len(pairs),
         "reference_unmatched": len(a)-len(pairs), "candidate_unmatched": len(b)-len(pairs),
-        "exact_pitch_matches": sum(x.pitch==y.pitch for x,y in pairs),
+        "exact_pitch_matches": exact,
+        "exact_pitch_fraction_aligned": exact/len(pairs) if pairs else None,
+        "exact_pitch_precision": exact/len(b) if b else None,
+        "exact_pitch_recall": exact/len(a) if a else None,
+        "end_mae_seconds": average(abs(x.end-y.end) for x,y in pairs),
         "pitch_mae_semitones": average(abs(x.pitch-y.pitch) for x,y in pairs),
         "onset_mae_seconds": average(abs(x.start-y.start) for x,y in pairs),
         "duration_mae_seconds": average(abs((x.end-x.start)-(y.end-y.start)) for x,y in pairs),

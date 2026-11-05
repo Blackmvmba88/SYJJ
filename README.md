@@ -68,3 +68,29 @@ A/B acepta audio y JSON, y empareja eventos con una tolerancia de inicio de
 distribución por octavas. Cuando A es audio, la referencia también es una
 transcripción estimada. Para medir precisión frente a notas verificadas,
 usa un arreglo JSON anotado como A.
+
+### Experimento de articulación
+
+Usa el JSON y el WAV de la reconstrucción actual como A. El detector
+lee la referencia original y genera un JSON separado con las decisiones de B.
+
+```sh
+.venv/bin/python -m glide_arrangement articulate referencia.mp3 arreglo.json arreglo-b.json
+.venv/bin/python -m glide_arrangement render arreglo-b.json arreglo-b.wav
+.venv/bin/python -m glide_arrangement articulation-ab referencia.mp3 arreglo.json arreglo.wav arreglo-b.json arreglo-b.wav
+```
+
+El detector usa energía y flujo espectral en bandas alrededor de los armónicos
+de cada altura ya estimada. Une fragmentos cercanos si se mantiene la energía
+sin un ataque claro. Divide una nota existente solo ante una caída marcada
+seguida de una subida con transitorio. Etiqueta como legato las transiciones
+cercanas entre alturas de una misma voz con energía durante el enlace.
+La etiqueta de release guarda el fin audible estimado y la caída de energía
+propuesta como fin de excitación. El sintetizador usa la cola configurada
+para esa voz.
+
+El informe separa precisión y cobertura de altura, errores de inicio, fin y
+duración, pausas y solapamientos por voz, y similitud de la envolvente RMS.
+Los conteos de decisiones sobre el MP3 son hipótesis. Para medir precisión y
+cobertura de retriggers se requieren ataques anotados por voz, altura y tiempo.
+Las pruebas usan eventos conocidos para esa evaluación.

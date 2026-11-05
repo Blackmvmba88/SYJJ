@@ -13,6 +13,10 @@ def main():
     analyze.add_argument("audio", type=Path)
     analyze.add_argument("output", type=Path)
     analyze.add_argument("--polyphony", type=int, default=8)
+    articulate = commands.add_parser("articulate")
+    articulate.add_argument("audio", type=Path)
+    articulate.add_argument("baseline", type=Path)
+    articulate.add_argument("output", type=Path)
     render = commands.add_parser("render")
     render.add_argument("score", type=Path)
     render.add_argument("output", type=Path)
@@ -20,6 +24,10 @@ def main():
     compare = commands.add_parser("compare")
     compare.add_argument("reference", type=Path)
     compare.add_argument("candidate", type=Path)
+
+    experiment = commands.add_parser("articulation-ab")
+    for name in ("reference", "a_score", "a_audio", "b_score", "b_audio"):
+        experiment.add_argument(name, type=Path)
 
     args = parser.parse_args()
     def read(path):
@@ -34,6 +42,15 @@ def main():
             from .transcribe import assign_voices, estimate_notes
             voices = assign_voices(estimate_notes(args.audio, args.polyphony))
             args.output.write_text(json.dumps({"voices": [asdict(v) for v in voices]}, indent=2)+"\n")
+        elif args.command == "articulate":
+            from .articulation import extract_evidence, refine
+            if args.output.resolve() in {args.baseline.resolve(), args.audio.resolve()}:
+                raise ValueError("Usa un archivo de salida distinto para conservar la referencia A")
+            voices = read(args.baseline)
+            evidence = extract_evidence(args.audio, {n.pitch for v in voices for n in v.notes})
+            refined, decisions = refine(voices, evidence)
+            payload = {"voices": [asdict(v) for v in refined], "articulation": decisions}
+            args.output.write_text(json.dumps(payload, indent=2)+"\n")
         elif args.command == "render":
             from .render import render_midi, render_wav
             voices = read(args.score)
@@ -43,6 +60,11 @@ def main():
                 args.output.write_bytes(render_midi(voices, args.bpm))
             else:
                 raise ValueError("Usa una salida WAV o MIDI")
+        elif args.command == "articulation-ab":
+            from .articulation_metrics import evaluate
+            a = json.loads(args.a_score.read_text())
+            b = json.loads(args.b_score.read_text())
+            print(json.dumps(evaluate(args.reference, a, b, args.a_audio, args.b_audio), indent=2))
         else:
             from .compare import compare as compare_events
             print(json.dumps(compare_events(notes(args.reference), notes(args.candidate)), indent=2))
