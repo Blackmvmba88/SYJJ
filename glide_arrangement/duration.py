@@ -63,7 +63,9 @@ def estimate_end(curve, note, profile, limit=np.inf):
                 or np.median(b[strong]/a[strong]) >= .78):
             continue
         # The acoustic endpoint uses an operational floor 24 dB below the knee.
-        decay_end = when + min(profile.max_tail, 24/abs(post))
+        model_end = when + 24/abs(post)
+        horizon = min(when+profile.max_tail,stop)
+        decay_end = min(model_end,horizon)
         tail_region = np.flatnonzero((t >= when+profile.min_tail) & (t <= min(decay_end,stop)))
         if not tail_region.size:
             continue
@@ -74,12 +76,14 @@ def estimate_end(curve, note, profile, limit=np.inf):
         if tail < profile.min_tail:
             continue
         score = residual/baseline + .55*abs(when-note.end)
-        candidates.append((score,float(when),float(acoustic),float(post),bool(crossings.size)))
+        provenance = "observed" if crossings.size else "bounded" if horizon < model_end else "extrapolated"
+        candidates.append((score,float(when),float(acoustic),float(post),provenance))
     if not candidates:
         return None
-    _, end, acoustic, slope, observed = min(candidates)
+    _, end, acoustic, slope, provenance = min(candidates)
     return {"excitation_end":end,"acoustic_end":acoustic,"tail_seconds":acoustic-end,
-            "tail_decay_db_s":slope,"acoustic_end_observed":observed}
+            "tail_decay_db_s":slope,"acoustic_end_observed":provenance=="observed",
+            "acoustic_end_provenance":provenance}
 
 def refine_duration(voices, evidence, instrument=None):
     output, decisions = [], []

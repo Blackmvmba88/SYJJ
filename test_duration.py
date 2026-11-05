@@ -35,3 +35,18 @@ class DurationTests(unittest.TestCase):
         output, decisions = refine_duration([voice],{60:curve})
         self.assertEqual(output,[voice])
         self.assertEqual(decisions,[])
+
+    def test_acoustic_end_provenance_separates_measurement_and_model(self):
+        import numpy as np
+        from glide_arrangement.articulation import Evidence
+        from glide_arrangement.duration import PROFILES, estimate_end
+
+        t = np.arange(0,2,.005)
+        note = Note(60,.12,1.28)
+        for decay, limit, expected in [(10,2,"observed"),(10,1.2,"bounded"),(15,2,"extrapolated")]:
+            with self.subTest(expected=expected):
+                energy = np.exp(-.2*t-decay*np.maximum(t-1,0))
+                curve = Evidence(t,energy,np.zeros_like(t),np.array([energy,.35*energy]))
+                result = estimate_end(curve,note,PROFILES["piano"],limit)
+                self.assertEqual(result["acoustic_end_provenance"],expected)
+                self.assertEqual(result["acoustic_end_observed"],expected=="observed")

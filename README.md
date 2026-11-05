@@ -152,3 +152,38 @@ La prueba externa usó los primeros 26 s de las tomas VuV01M y Zhang01M
 de la fuga BWV 858. Audio MAESTRO y MIDI de interpretación ASAP,
 distribuidos por [Matchmaker](https://github.com/pymatchmaker/matchmaker-benchmark-data/tree/main/asap).
 Los archivos de terceros no se incluyen en el repositorio.
+
+### Pedal y resonancia vNext.4
+
+La evaluación construye los intervalos CC64 por canal, conserva el orden de
+eventos simultáneos y separa el fin de tecla del retorno esperado del
+amortiguador. El modelo MIDI es binario (CC64 ≥ 64) y no mide la mecánica
+del instrumento ni el medio pedal. El informe excluye de la métrica de
+amortiguador los finales fuera del fragmento y las rearticulaciones que
+impiden atribuir una cola a una sola nota.
+
+El JSON de duración distingue `observed` (cruce del piso operativo de
+−24 dB dentro de la ventana), `extrapolated` (cruce calculado a partir de
+la pendiente) y `bounded` (resultado limitado por la ventana o el perfil).
+El fin acústico y el retorno del amortiguador son mediciones distintas.
+
+```sh
+.venv/bin/python -m experiments.pedal_ab /ruta/a/fragmentos TOMA1 TOMA2 --seconds 45
+.venv/bin/python -m experiments.guitar_duration_ab /ruta/a/guitarset 0 120 240
+```
+
+La primera herramienta lee WAV y MIDI con el mismo nombre base. La segunda
+lee el WAV de micrófono y la respuesta JSON del visor de filas de
+[jhartquist/guitarset](https://huggingface.co/datasets/jhartquist/guitarset)
+para cada índice. Reporta finales anotados por cuerda, cuerdas superpuestas,
+repeticiones de altura y transiciones cercanas. Esas etiquetas describen
+eventos acústicos, no el gesto de apagado o ligado de la mano.
+
+La evaluación externa aplicó los perfiles de vNext.3 sin recalibrarlos. Para
+piano usó 45 s iniciales de seis piezas en la revisión
+`7ea5babf039a0c009050646c90ea2bfe925653f6` de
+[Matchmaker/ASAP](https://github.com/pymatchmaker/matchmaker-benchmark-data/tree/main/asap)
+(audio MAESTRO). Para guitarra usó las filas 0, 120 y 240 de la distribución
+indicada de [GuitarSet](https://zenodo.org/records/3371780). Los intervalos
+bootstrap emparejados remuestrean interpretaciones, con igual peso por toma.
+Los audios y anotaciones de terceros se descargan por separado.

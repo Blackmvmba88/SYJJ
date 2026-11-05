@@ -1,6 +1,6 @@
 """Evaluate note-off against time-aligned performance MIDI."""
 import argparse
-from collections import defaultdict, deque
+from collections import defaultdict
 import json
 from pathlib import Path
 
@@ -13,23 +13,11 @@ from glide_arrangement.transcribe import assign_voices, estimate_notes
 
 def midi_labels(path, until):
     import mido
-    notes = []
-    time = 0.
-    pending = defaultdict(deque)
-    pedal = defaultdict(bool)
-    for message in mido.MidiFile(path):
-        time += message.time
-        if time >= until:
-            break
-        if message.type == "control_change" and message.control == 64:
-            pedal[message.channel] = message.value >= 64
-        elif message.type == "note_on" and message.velocity > 0:
-            pending[message.channel,message.note].append(time)
-        elif message.type in {"note_on","note_off"} and pending[message.channel,message.note]:
-            start = pending[message.channel,message.note].popleft()
-            if start > .12 and time < until-.30:
-                notes.append((message.note,start,time,pedal[message.channel]))
-    return notes
+    from .pedal_reference import read_performance
+
+    notes, _ = read_performance(mido.MidiFile(path))
+    return [(note.pitch,note.onset[0],note.off[0],note.pedal_at_off)
+            for note in notes if .12<note.onset[0] and note.off[0]<until-.30]
 
 def evaluate(reference, a, b, instrument):
     pitch, starts, ends, pedals = map(np.asarray,zip(*reference)) if reference else ([],[],[],[])
