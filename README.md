@@ -264,3 +264,40 @@ La prueba aislada usa el piano virtual de
 entre MIDI 45 y 71 y evalúa 14 pares entre 46 y 72, todas a velocidad 100
 en el original. Las métricas cubren el primer segundo de la nota,
 antes de soltar la tecla. El pedal se comprueba aparte en pruebas controladas.
+
+### Análisis por síntesis vNext.7
+
+```sh
+.venv/bin/python -m glide_arrangement inverse referencia.wav perfil.json arreglo.json candidato.json
+.venv/bin/python -m glide_arrangement render candidato.json candidato.mid
+.venv/bin/python -m glide_arrangement render-instrument perfil.json candidato.mid candidato.wav
+```
+
+La búsqueda conserva el perfil y A, prueba vecinos de altura de hasta dos
+semitonos, cambios de 40 u 80 ms en inicio o fin y candidatos obtenidos de
+energía residual con soporte armónico. Cada cambio se evalúa en la mezcla
+completa de las voces que suenan en esa ventana. Se pueden aislar las
+operaciones con `--mode pitch`, `--mode timing` y `--mode missing`. La
+combinación usa búsqueda por coordenadas y un presupuesto de cambios, no
+una optimización global de acordes. El JSON conserva una auditoría de las
+propuestas aceptadas. Una mejora local del objetivo acústico no garantiza
+que la propuesta MIDI sea correcta.
+
+```sh
+.venv/bin/python -m experiments.inverse_ab piano-aislado.wav piano-aislado.mid perfil.json
+.venv/bin/python -m experiments.inverse_ab toma.wav toma.mid perfil.json --external 26
+.venv/bin/python -m experiments.velocity_ab /ruta/a/muestras
+```
+
+El control mezcla seis notas reservadas de PIANO-AUG y altera deliberadamente
+una altura, un inicio y una nota ausente. La prueba externa usa fragmentos
+independientes del piano de calibración y puntúa F1 con altura exacta e
+inicio a ±50 ms. F1 con final añade una tolerancia de 50 ms o 20 % de la
+duración anotada, lo que sea mayor.
+
+La prueba de velocidad usa WAV aislados `ALTURA-VELOCIDAD.wav` del
+instrumento `keyboard_acoustic_004` de [NSynth](https://magenta.withgoogle.com/datasets/nsynth).
+Ajusta con velocidades 25, 75 y 127 y evalúa 50 y 100. Compara escala
+de amplitud con forma fija, interpolación de parciales y regresión conjunta
+regularizada de altura, velocidad y tiempo. El experimento se ejecuta por
+separado del refinador MIDI.

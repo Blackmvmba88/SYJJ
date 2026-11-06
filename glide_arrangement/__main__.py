@@ -40,6 +40,11 @@ def main():
     play = commands.add_parser("render-instrument")
     for name in ("profile","midi","output"):
         play.add_argument(name,type=Path)
+    inverse = commands.add_parser("inverse")
+    for name in ("audio","profile","baseline","output"):
+        inverse.add_argument(name,type=Path)
+    inverse.add_argument("--mode",choices=("pitch","timing","missing"),action="append")
+    inverse.add_argument("--max-edits",type=int,default=24)
     render = commands.add_parser("render")
     render.add_argument("score", type=Path)
     render.add_argument("output", type=Path)
@@ -140,6 +145,27 @@ def main():
             profile = Profile.from_json(json.loads(args.profile.read_text()))
             voices, pedal = read_midi(args.midi)
             write_profile_audio(profile,voices,pedal,args.output)
+        elif args.command == "inverse":
+            import librosa
+            from .instrument import Profile
+            from .inverse import refine_score
+            from .spectrotemporal import RATE
+            if args.output.exists() or args.output.resolve() in {
+                    args.audio.resolve(),args.profile.resolve(),args.baseline.resolve()}:
+                raise ValueError("Usa un archivo de salida nuevo para conservar A")
+            profile = Profile.from_json(json.loads(args.profile.read_text()))
+            data = json.loads(args.baseline.read_text())
+            voices = load_score(data)
+            shared_pedal = data.get("pedal_intervals",[])
+            reference,_ = librosa.load(args.audio,sr=RATE)
+            modes = args.mode or ("pitch","timing","missing")
+            refined,edits = refine_score(reference,profile,voices,
+                                         {v.id:shared_pedal for v in voices},modes,
+                                         max_edits=args.max_edits)
+            payload = {"voices":[asdict(v) for v in refined],"inverse_edits":edits}
+            if "pedal_intervals" in data:
+                payload["pedal_intervals"] = shared_pedal
+            args.output.write_text(json.dumps(payload,indent=2)+"\n")
         elif args.command == "render":
             from .render import render_midi, render_wav
             data = json.loads(args.score.read_text())
