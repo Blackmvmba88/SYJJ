@@ -223,3 +223,44 @@ de vNext.3 y dos renders, con y sin las colas observadas de vNext.5.
 Reporta error RMS normalizado de mezcla y ventanas posteriores al fin MIDI
 por estado del pedal. Es una medida de reconstrucción de la envolvente
 de mezcla y no una validación independiente del final acústico por nota.
+
+### Síntesis acústica vNext.6
+
+La rama experimental ofrece dos rutas. `spectral` analiza la grabación
+objetivo y reparte potencia espectral entre los parciales candidatos de las
+notas ya detectadas. Reconstruye con osciladores aditivos y envolventes
+variables. CC64 prolonga la ventana de las notas candidatas de piano,
+que siguen compitiendo por la potencia compartida. La asignación mono es
+una hipótesis. El modelo no recupera la fase original, no separa fuentes
+idénticas de forma fiable y no excita cuerdas que no figuran en el arreglo.
+
+```sh
+.venv/bin/python -m glide_arrangement spectral referencia.wav resonancia.json espectral.wav --instrument piano
+.venv/bin/python -m experiments.spectrotemporal_ab /ruta/a/grabaciones TOMA1 TOMA2 --instrument piano
+```
+
+El experimento conserva los mismos eventos de vNext.3 en los tres renders.
+A usa la síntesis fija y la duración de vNext.3. B añade las colas observadas
+de vNext.5. C usa el análisis espectrotemporal de la grabación de referencia.
+Reporta RMS y distancia media de magnitud logarítmica a 512, 2048 y 8192
+muestras, con ventanas de ataque, liberación y pedal. Los resultados son
+de resíntesis condicionada por la toma, no de generación desde MIDI solo.
+
+Para crear un instrumento reutilizable, prepara un JSON con los tiempos,
+alturas y velocidades de notas aisladas de calibración. La segunda ruta
+ajusta 8 envolventes parciales por altura, interpola alturas intermedias y
+reproduce notas, velocidad y pedal desde MIDI. Solo necesita el perfil en
+tiempo de render. La velocidad y la cola usan reglas de síntesis. Esta fase
+no ajusta eventos MIDI ni modela resonadores físicos.
+
+```sh
+.venv/bin/python -m glide_arrangement fit-instrument notas.wav notas.json perfil.json --instrument piano
+.venv/bin/python -m glide_arrangement render-instrument perfil.json interpretacion.mid instrumento.wav
+.venv/bin/python -m experiments.instrument_ab notas.wav notas.mid perfil.json
+```
+
+La prueba aislada usa el piano virtual de
+[PIANO-AUG](https://zenodo.org/records/6327395). Ajusta 14 alturas impares
+entre MIDI 45 y 71 y evalúa 14 pares entre 46 y 72, todas a velocidad 100
+en el original. Las métricas cubren el primer segundo de la nota,
+antes de soltar la tecla. El pedal se comprueba aparte en pruebas controladas.

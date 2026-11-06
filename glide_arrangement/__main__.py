@@ -29,6 +29,17 @@ def main():
     resonance.add_argument("--pedal-midi",type=Path)
     resonance.add_argument("--pedal-channel",type=int,choices=range(16),default=0)
     resonance.add_argument("--strings",type=Path)
+    spectral = commands.add_parser("spectral")
+    for name in ("audio","score","output"):
+        spectral.add_argument(name,type=Path)
+    spectral.add_argument("--instrument",choices=("piano","guitar"),required=True)
+    fit = commands.add_parser("fit-instrument")
+    for name in ("audio","score","output"):
+        fit.add_argument(name,type=Path)
+    fit.add_argument("--instrument",choices=("piano","guitar"),required=True)
+    play = commands.add_parser("render-instrument")
+    for name in ("profile","midi","output"):
+        play.add_argument(name,type=Path)
     render = commands.add_parser("render")
     render.add_argument("score", type=Path)
     render.add_argument("output", type=Path)
@@ -108,6 +119,27 @@ def main():
             data["resonance"] = condition(voices,evidence,args.instrument,pedal,
                                          data.get("duration",[]),strings,isolated)
             args.output.write_text(json.dumps(data,indent=2)+"\n")
+        elif args.command == "spectral":
+            from .resonance import rendering_tails
+            from .spectrotemporal import render_conditioned
+            if args.output.resolve() in {args.audio.resolve(),args.score.resolve()} or args.output.suffix.lower()!=".wav":
+                raise ValueError("Usa un WAV distinto como salida")
+            data = json.loads(args.score.read_text())
+            render_conditioned(args.audio,load_score(data),args.output,args.instrument,
+                               rendering_tails(data),data.get("pedal_intervals",()))
+        elif args.command == "fit-instrument":
+            from .instrument import fit_file
+            if args.output.resolve() in {args.audio.resolve(),args.score.resolve()}:
+                raise ValueError("Usa un archivo nuevo para el perfil")
+            profile = fit_file(args.audio,[n for v in read(args.score) for n in v.notes],args.instrument)
+            args.output.write_text(json.dumps(profile.to_json(),indent=2)+"\n")
+        elif args.command == "render-instrument":
+            from .instrument import Profile, read_midi, write_profile_audio
+            if args.output.resolve() in {args.midi.resolve(),args.profile.resolve()} or args.output.suffix.lower()!=".wav":
+                raise ValueError("Usa un WAV distinto como salida")
+            profile = Profile.from_json(json.loads(args.profile.read_text()))
+            voices, pedal = read_midi(args.midi)
+            write_profile_audio(profile,voices,pedal,args.output)
         elif args.command == "render":
             from .render import render_midi, render_wav
             data = json.loads(args.score.read_text())
