@@ -23,11 +23,16 @@ def estimate_end(curve, note, profile, limit=np.inf):
     """Fit a continuous, two-slope log envelope with harmonic corroboration."""
     if curve.partials is None or note.end-note.start < .22:
         return None
-    t, energy = curve.time, curve.energy
+    # A note can only use evidence near its endpoint. Keep full takes cheap
+    # without changing the search window or its decision thresholds.
+    first = np.searchsorted(curve.time,note.end-.51)
+    last = np.searchsorted(curve.time,note.end+.28,side="right")
+    t, energy = curve.time[first:last], curve.energy[first:last]
+    partials = curve.partials[:,first:last]
     step = t[1]-t[0] if len(t)>1 else 0
     if step <= 0:
         return None
-    stop = min(limit, t[-1], note.end+.28)
+    stop = min(limit, curve.time[-1], note.end+.28)
     search = np.flatnonzero((t >= max(note.start+.13,note.end-.40)) &
                             (t <= min(note.end+.12, stop-.105)))
     candidates = []
@@ -55,8 +60,8 @@ def estimate_end(curve, note, profile, limit=np.inf):
         late = (t >= when+.07) & (t <= min(when+.115,stop))
         if not early.any() or not late.any():
             continue
-        a = np.median(curve.partials[:,early],axis=1)
-        b = np.median(curve.partials[:,late],axis=1)
+        a = np.median(partials[:,early],axis=1)
+        b = np.median(partials[:,late],axis=1)
         norm = np.linalg.norm(a)*np.linalg.norm(b)
         strong = a >= .16*np.max(a)
         if (norm <= 1e-8 or np.dot(a,b)/norm < .91 or not strong.any()

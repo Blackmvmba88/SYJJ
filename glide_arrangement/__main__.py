@@ -22,6 +22,13 @@ def main():
     for name in ("audio","baseline","output"):
         duration.add_argument(name,type=Path)
     duration.add_argument("--instrument", choices=("piano","guitar","keys","bass","strings","soft"))
+    resonance = commands.add_parser("resonance")
+    for name in ("audio","baseline","output"):
+        resonance.add_argument(name,type=Path)
+    resonance.add_argument("--instrument",choices=("piano","guitar"),required=True)
+    resonance.add_argument("--pedal-midi",type=Path)
+    resonance.add_argument("--pedal-channel",type=int,choices=range(16),default=0)
+    resonance.add_argument("--strings",type=Path)
     render = commands.add_parser("render")
     render.add_argument("score", type=Path)
     render.add_argument("output", type=Path)
@@ -70,15 +77,47 @@ def main():
             refined, decisions = refine_duration(voices,evidence,args.instrument)
             args.output.write_text(json.dumps(
                 {"voices":[asdict(v) for v in refined],"duration":decisions},indent=2)+"\n")
+        elif args.command == "resonance":
+            from .articulation import extract_evidence
+            from .resonance import condition
+            if args.output.resolve() in {args.baseline.resolve(),args.audio.resolve()} or args.output.exists():
+                raise ValueError("Usa un archivo de salida nuevo para conservar las referencias")
+            data = json.loads(args.baseline.read_text())
+            voices = load_score(data)
+            pedal = None
+            if args.pedal_midi:
+                if args.instrument!="piano":
+                    raise ValueError("CC64 solo se aplica al perfil de piano")
+                import mido
+                from .pedal import read_performance
+                _, intervals = read_performance(mido.MidiFile(args.pedal_midi))
+                pedal = [(i.down[0],i.up[0] if i.up else None)
+                         for i in intervals if i.channel==args.pedal_channel]
+                data["pedal_intervals"] = pedal
+            strings, isolated = {}, {}
+            if args.strings:
+                if args.instrument!="guitar":
+                    raise ValueError("Las pistas por cuerda solo se aplican a guitarra")
+                layout = json.loads(args.strings.read_text())
+                strings = layout["voices"]
+                for string, wav in layout.get("audio",{}).items():
+                    pitches = {n.pitch for v in voices if strings.get(v.id)==string for n in v.notes}
+                    if pitches:
+                        isolated[string] = extract_evidence(args.strings.parent/wav,pitches)
+            evidence = extract_evidence(args.audio,{n.pitch for v in voices for n in v.notes})
+            data["resonance"] = condition(voices,evidence,args.instrument,pedal,
+                                         data.get("duration",[]),strings,isolated)
+            args.output.write_text(json.dumps(data,indent=2)+"\n")
         elif args.command == "render":
             from .render import render_midi, render_wav
             data = json.loads(args.score.read_text())
             voices = load_score(data)
             if args.output.suffix.lower() == ".wav":
-                tails = {(d["voice"],d["index"]):d["tail_seconds"] for d in data.get("duration",[])}
-                render_wav(voices, args.output, note_tails=tails)
+                from .resonance import rendering_dampers, rendering_tails
+                tails = rendering_tails(data)
+                render_wav(voices, args.output, note_tails=tails, note_dampers=rendering_dampers(data))
             elif args.output.suffix.lower() in {".mid", ".midi"}:
-                args.output.write_bytes(render_midi(voices, args.bpm))
+                args.output.write_bytes(render_midi(voices, args.bpm, pedal_intervals=data.get("pedal_intervals",())))
             else:
                 raise ValueError("Usa una salida WAV o MIDI")
         elif args.command == "articulation-ab":

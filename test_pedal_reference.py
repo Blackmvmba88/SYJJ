@@ -32,3 +32,17 @@ class PedalTests(unittest.TestCase):
         self.assertEqual(notes[0].off[0],notes[0].damper_end)
         self.assertTrue(notes[1].pedal_at_off)
         self.assertIsNone(notes[1].damper_end)
+
+    def test_reattack_at_same_tick_depends_on_damper_order(self):
+        earlier,_ = read_performance([pedal(0,127),key(.1,80),key(.2,0),
+                                      key(.2,85),pedal(0,0),key(.3,0)])
+        later,_ = read_performance([pedal(0,127),key(.1,80),key(.2,0),
+                                    pedal(.2,0),key(0,85),key(.3,0)])
+        self.assertAlmostEqual(earlier[0].damper_end,.8)
+        self.assertTrue(earlier[0].reattack_before_damper)
+        self.assertAlmostEqual(later[0].damper_end,.5)
+        self.assertFalse(later[0].reattack_before_damper)
+
+    def test_overlapping_same_pitch_has_ambiguous_note_off_pairing(self):
+        notes,_ = read_performance([key(.1,80),key(.2,90),key(.2,0),key(.1,0)])
+        self.assertTrue(all(note.overlapping_key_events for note in notes))

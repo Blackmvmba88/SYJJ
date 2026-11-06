@@ -19,8 +19,9 @@ def expression_at(voice, times):
         return np.full_like(times, 100, dtype=float)
     return np.interp(times, [p[0] for p in points], [p[1] for p in points])
 
-def render_wav(voices, path, sample_rate=44100, note_tails=None):
+def render_wav(voices, path, sample_rate=44100, note_tails=None, note_dampers=None):
     tails = note_tails or {}
+    dampers = note_dampers or {}
     duration = max((n.end + tails.get((v.id,i),v.release)
                     for v in voices for i,n in enumerate(v.notes)), default=0)
     mix = np.zeros(max(1, int(np.ceil(duration * sample_rate))))
@@ -36,7 +37,12 @@ def render_wav(voices, path, sample_rate=44100, note_tails=None):
             attack = voice.attack * (1.8 if note.start < previous_end else 1)
             envelope = np.minimum(t/max(attack, 1/sample_rate), 1)
             envelope *= 1-decay*(1-np.exp(-t/.55))
-            envelope *= np.clip(1-(t-held)/max(release, 1/sample_rate), 0, 1)
+            damper = dampers.get((voice.id,index),note.end)-note.start
+            open_time = min(max(damper-held,0),release)
+            if open_time:
+                # Gentle natural decay before damper contact, faster after.
+                envelope *= np.exp(-1.8*np.clip(t-held,0,open_time))
+            envelope *= np.clip(1-(t-held-open_time)/max(release-open_time,1/sample_rate),0,1)
             hz = 440*2**((note.pitch-69)/12)
             wave = sum(gain*np.sin(2*np.pi*hz*k*t)
                        for k, gain in enumerate(partials, 1) if hz*k < sample_rate/2)
@@ -56,7 +62,7 @@ def _track(events):
     data.extend(b"\x00\xff\x2f\x00")
     return b"MTrk" + struct.pack(">I", len(data)) + data
 
-def render_midi(voices, bpm=120):
+def render_midi(voices, bpm=120, pedal_intervals=()):
     if not 4 <= bpm <= 600:
         raise ValueError("Tempo fuera de rango")
     channels = [ch for ch in range(16) if ch != 9]
@@ -65,9 +71,15 @@ def render_midi(voices, bpm=120):
     tracks = [_track([(0, 0, b"\xff\x51\x03" + round(60_000_000/bpm).to_bytes(3,"big"))])]
     def tick(seconds):
         return round(seconds*bpm*480/60)
+    pedal_events = {}
+    for down,up in pedal_intervals:
+        pedal_events[tick(down)] = 127
+        if up is not None:
+            pedal_events[tick(up)] = 0
     for voice, channel in zip(voices, channels):
         program = INSTRUMENTS[voice.instrument][0]
         events = [(0, 0, bytes([0xC0+channel, program]))]
+        events.extend((when,1,bytes([0xB0+channel,64,value])) for when,value in pedal_events.items())
         end_time = max((n.end for n in voice.notes), default=0)
         times = sorted({0., *[t for t, _ in voice.expression],
                         *([i/20 for i in range(int(end_time*20)+1)] if voice.expression else [])})

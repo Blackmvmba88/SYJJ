@@ -187,3 +187,39 @@ piano usó 45 s iniciales de seis piezas en la revisión
 indicada de [GuitarSet](https://zenodo.org/records/3371780). Los intervalos
 bootstrap emparejados remuestrean interpretaciones, con igual peso por toma.
 Los audios y anotaciones de terceros se descargan por separado.
+
+### Resonancia condicionada vNext.5
+
+```sh
+.venv/bin/python -m glide_arrangement resonance referencia.wav duracion.json resonancia.json --instrument piano --pedal-midi interpretacion.mid
+.venv/bin/python -m glide_arrangement render resonancia.json resonancia.wav
+.venv/bin/python -m glide_arrangement render resonancia.json resonancia.mid
+```
+
+La etapa conserva los eventos musicales y añade un registro de resonancia por
+nota. Para piano puede leer CC64 de un MIDI alineado (`--pedal-channel`,
+0 por defecto). MIDI conserva los tiempos de tecla y exporta el pedal
+binario en los canales melódicos. Sin MIDI de pedal el estado queda como
+desconocido. El WAV aplica un decaimiento más lento mientras el amortiguador
+permanece abierto y el cierre posterior cuando hay una cola observada.
+
+Para guitarra, `--instrument guitar` aplica la ventana de ese instrumento.
+Opcionalmente `--strings cuerdas.json` acepta un mapa de voces y pistas por
+cuerda, con rutas relativas al JSON. Por ejemplo,
+`{"voices":{"v1":"2"},"audio":{"2":"cuerda-2.wav"}}`. Sin pistas aisladas,
+el análisis mono descarta observaciones cuando otra nota puede contribuir
+a la misma frecuencia. Las grabaciones de guitarra de la evaluación usan
+audio mono.
+
+Un cruce observado requiere que la fundamental y la envolvente armónica
+permanezcan bajo −24 dB durante al menos 70 ms. En piano con pedal conocido,
+la búsqueda empieza en el retorno previsto del amortiguador. Una nota
+puede volverse inaudible antes de ese instante y quedar indeterminada.
+Un final predicho se registra por separado y conserva la cola del render
+anterior, al igual que un caso indeterminado.
+
+`experiments.resonance_ab` compara tomas completas con los mismos eventos
+de vNext.3 y dos renders, con y sin las colas observadas de vNext.5.
+Reporta error RMS normalizado de mezcla y ventanas posteriores al fin MIDI
+por estado del pedal. Es una medida de reconstrucción de la envolvente
+de mezcla y no una validación independiente del final acústico por nota.

@@ -37,7 +37,8 @@ def paired_errors(labels, a, b, horizon):
         key_errors = (abs(a[col].end-n.off[0]),abs(b[col].end-n.off[0]))
         for name in ("key/all",f"key/off_pedal_{status}",f"key/pedal_{history}_to_{status}"):
             errors[name].append(key_errors)
-        if n.damper_end is not None and n.damper_end<horizon and not n.reattack_before_damper:
+        if (n.damper_end is not None and n.damper_end<horizon
+                and not n.reattack_before_damper and not n.overlapping_key_events):
             damper_errors = (abs(a[col].end-n.damper_end),abs(b[col].end-n.damper_end))
             for name in ("damper/all",f"damper/off_pedal_{status}"):
                 errors[name].append(damper_errors)
